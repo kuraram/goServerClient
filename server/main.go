@@ -7,5 +7,6 @@ import (
 func main() {
 
 	var fr typefile.FileRetrieve
+
 	fr.RecvFile()
 }
