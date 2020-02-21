@@ -33,7 +33,7 @@ func (ft *FileTrans) OpenTransFile(filename string) { //転送ファイルの読
 	}
 
 	ft.data = make([]byte, DATA_SIZE*ft.packet_num) // ゼロパディング処理
-	for i := 0; i < len(b)-1; i++ {
+	for i := 0; i < len(b)-1; i += 1 {
 		ft.data[i] = b[i]
 	}
 
@@ -45,15 +45,16 @@ func (ft *FileTrans) OpenTransFile(filename string) { //転送ファイルの読
 
 func (ft *FileTrans) SendFile() {
 
-	//p := make([]byte, 2048)
-	p := ft.data[0:1467]
-	fmt.Println(string(p))
 	conn, err := net.Dial("udp", ft.IP)
 	if err != nil {
 		fmt.Printf("Some error %v", err)
 		return
 	}
-	fmt.Fprintf(conn, string(p))
+
+	for i := 0; i < ft.packet_num; i += 1 {
+		p := ft.data[i*DATA_SIZE : (i+1)*DATA_SIZE]
+		fmt.Fprintf(conn, string(p))
+	}
 	/*
 		p = make([]byte, 2048)
 		_, err = bufio.NewReader(conn).Read(p)
