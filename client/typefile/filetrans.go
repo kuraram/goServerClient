@@ -3,36 +3,50 @@ package typefile
 import (
 	//"bufio"
 	"fmt"
+	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"net"
 	"os"
 )
 
-var DATA_SIZE = 1468
-
-//struct
 type FileTrans struct {
+	config     Config
 	data       []byte // 転送ファイルを格納
 	packet_num int
 	IP         string
+}
+
+func (ft *FileTrans) OpenYmlFile(filename string) { //YAMLファイルの読み込み
+
+	buf, err := ioutil.ReadFile(filename)
+	fmt.Println(string(buf))
+	if err != nil {
+		panic(err)
+	}
+
+	err = yaml.Unmarshal(buf, &ft.config)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (ft *FileTrans) OpenTransFile(filename string) { //転送ファイルの読み込み
 
 	f, err := os.Open(filename)
 	if err != nil {
-		fmt.Printf("error")
+		fmt.Printf("Some error %v\n", err)
+		return
 	}
 	defer f.Close()
 
 	b, err := ioutil.ReadAll(f) // ファイル全体の読み込み
 	//fmt.Println(string(ft.data))
-	ft.packet_num = int(len(b)) / DATA_SIZE
-	if int(len(b))%DATA_SIZE != 0 {
+	ft.packet_num = int(len(b)) / ft.config.DATA_SIZE
+	if int(len(b))%ft.config.DATA_SIZE != 0 {
 		ft.packet_num += 1
 	}
 
-	ft.data = make([]byte, DATA_SIZE*ft.packet_num) // ゼロパディング処理
+	ft.data = make([]byte, ft.config.DATA_SIZE*ft.packet_num) // ゼロパディング処理
 	for i := 0; i < len(b)-1; i += 1 {
 		ft.data[i] = b[i]
 	}
@@ -52,18 +66,9 @@ func (ft *FileTrans) SendFile() {
 	}
 
 	for i := 0; i < ft.packet_num; i += 1 {
-		p := ft.data[i*DATA_SIZE : (i+1)*DATA_SIZE]
+		p := ft.data[i*ft.config.DATA_SIZE : (i+1)*ft.config.DATA_SIZE]
 		fmt.Fprintf(conn, string(p))
 	}
-	/*
-		p = make([]byte, 2048)
-		_, err = bufio.NewReader(conn).Read(p)
-		if err == nil {
-			fmt.Printf("%s\n", p)
-		} else {
-			fmt.Printf("Some error %v\n", err)
-		}
-	*/
 	conn.Close()
 
 }
