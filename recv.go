@@ -10,7 +10,9 @@ func main() {
 
 	filename := "./config.yaml"
 	fr.OpenYmlFile(filename)
+	fr.Initialize()
 
 	filename = "./retrieval/message.txt"
-	fr.RecvFile(filename)
+	fr.RecvPacket()
+	fr.JoinPacket(filename)
 }

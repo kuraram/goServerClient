@@ -22,7 +22,7 @@ type FileTrans struct {
 func (ft *FileTrans) OpenYmlFile(filename string) { //YAMLファイルの読み込み
 
 	buf, err := ioutil.ReadFile(filename)
-	fmt.Println(string(buf))
+	//fmt.Println(string(buf))
 	if err != nil {
 		panic(err)
 	}
@@ -70,7 +70,7 @@ func (ft *FileTrans) CreatePayload() { // 先頭4バイトに独自ヘッダを�
 		header := tool.int_to_bytes(i)
 		data = append(header, data...)
 		ft.payloads[i] = data
-		fmt.Println(header)
+		//fmt.Println(header)
 	}
 }
 
