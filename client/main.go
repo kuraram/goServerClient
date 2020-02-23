@@ -14,6 +14,8 @@ func main() {
 	filename = "./message"
 	ft.OpenTransFile(filename)
 
+	ft.CreatePayload()
+
 	ft.IP = "127.0.0.1:1234"
 	ft.SendFile()
 }

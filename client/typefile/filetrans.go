@@ -7,12 +7,15 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	//"unsafe"
+	//"strconv"
 )
 
 type FileTrans struct {
 	config     Config
 	data       []byte // 転送ファイルを格納
 	packet_num int
+	payloads   map[int][]byte
 	IP         string
 }
 
@@ -57,6 +60,18 @@ func (ft *FileTrans) OpenTransFile(filename string) { //転送ファイルの読
 
 }
 
+func (ft *FileTrans) CreatePayload() { // 先頭4バイトに独自ヘッダを付与
+
+	ft.payloads = map[int][]byte{} //初期化
+	for i := 0; i < ft.packet_num; i += 1 {
+		data := ft.data[i*ft.config.DATA_SIZE : (i+1)*ft.config.DATA_SIZE]
+		header := int_to_bytes(i)
+		data = append(header, data...)
+		ft.payloads[i] = data
+		//fmt.Println(len(ft.payloads[i]))
+	}
+}
+
 func (ft *FileTrans) SendFile() {
 
 	conn, err := net.Dial("udp", ft.IP)
@@ -66,8 +81,7 @@ func (ft *FileTrans) SendFile() {
 	}
 
 	for i := 0; i < ft.packet_num; i += 1 {
-		p := ft.data[i*ft.config.DATA_SIZE : (i+1)*ft.config.DATA_SIZE]
-		fmt.Fprintf(conn, string(p))
+		fmt.Fprintf(conn, string(ft.payloads[i]))
 	}
 	conn.Close()
 
