@@ -78,7 +78,7 @@ func (fr *FileRetrieve) RecvPacket() {
 	}
 }
 
-func (fr *FileRetrieve) JoinPacket(filename string) { // 全パケットの結合
+func (fr *FileRetrieve) JoinPacket(filename string) { // 全パケットの結合と書き込み
 
 	//fmt.Println(fr.payloads[1])
 	for i := 0; i < fr.packet_num; i += 1 {
