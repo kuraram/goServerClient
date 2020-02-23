@@ -8,10 +8,10 @@ func main() {
 
 	var ft typefile.FileTrans
 
-	filename := "../config.yaml"
+	filename := "./config.yaml"
 	ft.OpenYmlFile(filename)
 
-	filename = "./message"
+	filename = "./transfer/message"
 	ft.OpenTransFile(filename)
 
 	ft.CreatePayload()

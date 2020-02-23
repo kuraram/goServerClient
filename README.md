@@ -2,7 +2,8 @@
 
 ## ディレクトリ構成
 
-- Client
+- typefile
+構造体の定義
 
-
-- Server
+- retrieval, trasnfer
+送受信に用いるファイル

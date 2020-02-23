@@ -8,8 +8,9 @@ func main() {
 
 	var fr typefile.FileRetrieve
 
-	filename := "../config.yaml"
+	filename := "./config.yaml"
 	fr.OpenYmlFile(filename)
 
-	fr.RecvFile()
+	filename = "./retrieval/message.txt"
+	fr.RecvFile(filename)
 }

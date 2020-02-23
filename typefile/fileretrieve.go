@@ -31,7 +31,7 @@ func (fr *FileRetrieve) OpenYmlFile(filename string) { //YAMLファイルの読�
 	}
 }
 
-func (fr *FileRetrieve) RecvFile() {
+func (fr *FileRetrieve) RecvFile(filename string) {
 
 	fr.datasize = 22000 //既知
 
@@ -63,7 +63,7 @@ func (fr *FileRetrieve) RecvFile() {
 	}
 
 	fr.data = fr.data[0 : fr.datasize-1] // ゼロパディング削除
-	err = ioutil.WriteFile("message.txt", fr.data, 0755)
+	err = ioutil.WriteFile(filename, fr.data, 0755)
 	if err != nil {
 		fmt.Printf("Some error %v\n", err)
 		return
