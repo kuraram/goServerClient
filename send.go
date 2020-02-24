@@ -2,7 +2,7 @@ package main
 
 import (
 	"./typefile"
-	"fmt"
+	//"fmt"
 )
 
 func main() {
@@ -44,5 +44,5 @@ func main() {
 			}
 		}
 	}
-	//ft.SendPacket()
+
 }
