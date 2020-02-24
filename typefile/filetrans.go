@@ -2,21 +2,25 @@ package typefile
 
 import (
 	//"bufio"
+	"encoding/json"
 	"fmt"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"net"
 	"os"
 	//"unsafe"
-	//"strconv"
+	"strconv"
 )
 
 type FileTrans struct {
-	config     Config
-	data       []byte // 転送ファイルを格納
-	packet_num int
-	payloads   map[int][]byte // 全ペイロードを格納
-	IP         string
+	config               Config
+	info                 Info
+	data                 []byte           // 転送ファイルを格納
+	packet_num           int              // 全パケット数
+	packet_num_per_block int              // 1ブロックのパケット数
+	payloads             map[int][]byte   // 全ペイロードを格納
+	sockets              map[int]net.Conn // Port番号に対応したソケット
+	IP                   string
 }
 
 func (ft *FileTrans) OpenYmlFile(filename string) { //YAMLファイルの読み込み
@@ -37,8 +41,7 @@ func (ft *FileTrans) OpenTransFile(filename string) { //転送ファイルの読
 
 	f, err := os.Open(filename)
 	if err != nil {
-		fmt.Printf("Some error %v\n", err)
-		return
+		panic(err)
 	}
 	defer f.Close()
 
@@ -60,6 +63,26 @@ func (ft *FileTrans) OpenTransFile(filename string) { //転送ファイルの読
 
 }
 
+func (ft *FileTrans) ReadInfo(payload string) { // OFCからのペイロードの読み込み
+
+	err := json.Unmarshal([]byte(payload), &ft.info)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Phase NUM : %d\n", ft.info.PhaseNum)
+	fmt.Printf("Split NUM : %d\n", ft.info.SplitNum)
+
+	// 各ブロックのパケット数
+	ft.packet_num_per_block = ft.packet_num / ft.info.SplitNum
+	if ft.packet_num%ft.info.SplitNum != 0 {
+		ft.packet_num_per_block += 1
+	}
+
+	fmt.Printf("Packet NUM per Block : %d\n", ft.packet_num_per_block)
+
+}
+
 func (ft *FileTrans) CreatePayload() { // 先頭4バイトに独自ヘッダを付与
 
 	var tool Tool
@@ -74,17 +97,36 @@ func (ft *FileTrans) CreatePayload() { // 先頭4バイトに独自ヘッダを�
 	}
 }
 
-func (ft *FileTrans) SendFile() {
+func (ft *FileTrans) CreateSockets() { // 転送に使用するソケットを作成
 
-	conn, err := net.Dial("udp", ft.IP)
-	if err != nil {
-		fmt.Printf("Some error %v", err)
-		return
+	ft.sockets = map[int]net.Conn{}
+
+	for phase := 0; phase < ft.info.PhaseNum; phase += 1 {
+		for _, block := range ft.info.Blocks[phase] {
+			port := 10000 + 100*phase + block
+			addr := ft.info.MulticastIP + ":" + strconv.Itoa(port)
+			conn, err := net.Dial("udp", addr)
+			if err != nil {
+				panic(err)
+			}
+			ft.sockets[port] = conn
+		}
 	}
 
-	for i := 0; i < ft.packet_num; i += 1 {
-		fmt.Fprintf(conn, string(ft.payloads[i]))
-	}
-	conn.Close()
+}
 
+func (ft *FileTrans) SendPacket(port int, pos int) {
+	fmt.Fprintf(ft.sockets[port], string(ft.payloads[pos]))
+}
+
+func (ft *FileTrans) Packet_num_per_block() int {
+	return ft.packet_num_per_block
+}
+
+func (ft *FileTrans) Phase_num() int {
+	return ft.info.PhaseNum
+}
+
+func (ft *FileTrans) Blocks() [][]int {
+	return ft.info.Blocks
 }
