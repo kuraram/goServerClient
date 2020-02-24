@@ -2,5 +2,5 @@ data_size: # 各パケットに挿入するデータサイズ
   1468
 payload_size: # UDPパケットのペイロード長
   1472
-uniq_head_size: # ペイロードに埋め込む独自ヘッダのサイズ
+custom_head_size: # ペイロードに埋め込む独自ヘッダのサイズ
   4
