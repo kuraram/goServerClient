@@ -23,10 +23,10 @@ type FileRetrieve struct {
 	sockets              map[int]*net.UDPConn // Port番号に対応したソケット
 	IP                   string
 	count                int
-	ret                  chan int
-	res                  map[int]chan int
-	sig                  map[int]chan int
-	mux                  sync.Mutex
+	comp_chan            chan int         // 全ブロックを取得するかの管理
+	data_chan            map[int]chan int // 1パケット毎の管理
+	block_chan           map[int]chan int // ブロック単位の受け取ったパケットの管理
+	mux                  sync.Mutex       // コンフリクトの制御
 }
 
 func (fr *FileRetrieve) OpenYmlFile(filename string) { //YAMLファイルの読み込み
@@ -57,18 +57,19 @@ func (fr *FileRetrieve) ReadInfo(payload string) { // OFCからのペイロー�
 
 func (fr *FileRetrieve) Initialize() { // 諸々の情報の計算
 
-	fr.packet_num = fr.info.DataSize / fr.config.DATA_SIZE
+	fr.packet_num = fr.info.DataSize / fr.config.DATA_SIZE // ブロック数1の場合のパケット数
 	if fr.info.DataSize%fr.config.DATA_SIZE != 0 {
 		fr.packet_num += 1
 	}
-	fmt.Printf("Packet NUM : %d\n", fr.packet_num)
 
 	// 各ブロックのパケット数
 	fr.packet_num_per_block = fr.packet_num / fr.info.SplitNum
 	if fr.packet_num%fr.info.SplitNum != 0 {
 		fr.packet_num_per_block += 1
 	}
+	fr.packet_num = fr.packet_num_per_block * fr.info.SplitNum // ブロック数を考慮したパケット数
 
+	fmt.Printf("Packet NUM : %d\n", fr.packet_num)
 	fmt.Printf("Packet NUM per Block : %d\n", fr.packet_num_per_block)
 
 	fr.payloads = map[int][]byte{} //ペイロード部分の初期化
@@ -96,23 +97,23 @@ func (fr *FileRetrieve) CreateSockets() { // 受信に使用するソケット�
 
 }
 
-func (fr *FileRetrieve) SetChanMap() {
+func (fr *FileRetrieve) SetChanMap() { // channelの初期化
 
-	fr.res = map[int]chan int{}
-	fr.sig = map[int]chan int{}
+	fr.data_chan = map[int]chan int{}
+	fr.block_chan = map[int]chan int{}
 
 	ports := fr.GetKeysPortNUM()
 	for _, port := range ports {
-		fr.res[port] = make(chan int, fr.packet_num_per_block)
-		fr.sig[port] = make(chan int, fr.packet_num_per_block)
+		fr.data_chan[port] = make(chan int, fr.packet_num_per_block)
+		fr.block_chan[port] = make(chan int, fr.packet_num_per_block)
 	}
 
-	fr.ret = make(chan int, len(ports))
+	fr.comp_chan = make(chan int, len(ports))
 }
 
-func (fr *FileRetrieve) RetrievePacket(port int) { // パケットの取得
+func (fr *FileRetrieve) RetrievePacket(port int) { // パケットの取得(ブロック単位)
 
-	//fmt.Println(port)
+	fmt.Println(port)
 
 	for i := 0; i < fr.packet_num_per_block; i++ {
 
@@ -126,18 +127,18 @@ func (fr *FileRetrieve) RetrievePacket(port int) { // パケットの取得
 
 	}
 	for {
-		//fmt.Println(len(sig))
-		if len(fr.sig[port]) >= fr.packet_num_per_block {
+		//fmt.Println(len(block_chan))
+		if len(fr.block_chan[port]) >= fr.packet_num_per_block {
 			break
 		}
 	}
 
-	fr.ret <- port
+	fr.comp_chan <- port
 }
 
 func (fr *FileRetrieve) GetData(p []byte, port int) { // 独自ヘッダとペイロード部分の取得
 
-	fr.res[port] <- 1
+	fr.data_chan[port] <- 1
 
 	var tool Tool
 	num := tool.bytes_to_int(p[:fr.config.CUSTOM_HEAD_SIZE])
@@ -147,11 +148,11 @@ func (fr *FileRetrieve) GetData(p []byte, port int) { // 独自ヘッダとペ�
 	fr.payloads[num] = p[fr.config.CUSTOM_HEAD_SIZE:]
 	fr.mux.Unlock()
 
-	//fmt.Println(num)
+	fmt.Println(num)
 	fr.count += 1
-	fr.sig[port] <- num
+	fr.block_chan[port] <- num
 
-	<-fr.res[port]
+	<-fr.data_chan[port]
 
 }
 
@@ -191,6 +192,6 @@ func (fr *FileRetrieve) Packet_Num() int {
 	return fr.packet_num
 }
 
-func (fr *FileRetrieve) Ret() chan int {
-	return fr.ret
+func (fr *FileRetrieve) Comp() chan int {
+	return fr.comp_chan
 }

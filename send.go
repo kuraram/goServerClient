@@ -18,10 +18,10 @@ func main() {
 	payload_json := `{
 		"multicast_ip":"239.0.0.1",
 		"data_size":22000,
-		"split_num":3,
+		"split_num":4,
 		"coded_bum":0,
 		"phase_num":1,
-		"blocks":[[0,1,2]]
+		"blocks":[[0,1,2,3]]
 	}`
 	ft.ReadInfo(payload_json)
 

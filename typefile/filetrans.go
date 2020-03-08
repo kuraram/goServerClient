@@ -15,6 +15,7 @@ import (
 type FileTrans struct {
 	config               Config
 	info                 Info
+	b                    []byte
 	data                 []byte           // 転送ファイルを格納
 	packet_num           int              // 全パケット数
 	packet_num_per_block int              // 1ブロックのパケット数
@@ -45,21 +46,19 @@ func (ft *FileTrans) OpenTransFile(filename string) { //転送ファイルの読
 	}
 	defer f.Close()
 
-	b, err := ioutil.ReadAll(f) // ファイル全体の読み込み
+	ft.b, err = ioutil.ReadAll(f) // ファイル全体の読み込み
 	//fmt.Println(string(ft.data))
-	ft.packet_num = int(len(b)) / ft.config.DATA_SIZE
-	if int(len(b))%ft.config.DATA_SIZE != 0 {
-		ft.packet_num += 1
-	}
 
-	ft.data = make([]byte, ft.config.DATA_SIZE*ft.packet_num) // ゼロパディング処理
-	for i := 0; i < len(b)-1; i += 1 {
-		ft.data[i] = b[i]
-	}
+	/*
+		ft.data = make([]byte, ft.config.DATA_SIZE*ft.packet_num) // ゼロパディング処理
+		for i := 0; i < len(b)-1; i += 1 {
+			ft.data[i] = b[i]
+		}
+	*/
 
-	fmt.Printf("File SIZE (byte): %d\n", int(len(b)))
-	fmt.Printf("After Zero Padding (byte): %d\n", int(len(ft.data)))
-	fmt.Printf("Packet NUM : %d\n", ft.packet_num)
+	fmt.Printf("File SIZE (byte): %d\n", int(len(ft.b)))
+	//fmt.Printf("After Zero Padding (byte): %d\n", int(len(ft.data)))
+	//fmt.Printf("Packet NUM : %d\n", ft.packet_num)
 
 }
 
@@ -73,12 +72,25 @@ func (ft *FileTrans) ReadInfo(payload string) { // OFCからのペイロード�
 	fmt.Printf("Phase NUM : %d\n", ft.info.PhaseNum)
 	fmt.Printf("Split NUM : %d\n", ft.info.SplitNum)
 
+	ft.packet_num = int(len(ft.b)) / ft.config.DATA_SIZE // ブロック数1の場合のパケット数
+	if int(len(ft.b))%ft.config.DATA_SIZE != 0 {
+		ft.packet_num += 1
+	}
+
 	// 各ブロックのパケット数
 	ft.packet_num_per_block = ft.packet_num / ft.info.SplitNum
 	if ft.packet_num%ft.info.SplitNum != 0 {
 		ft.packet_num_per_block += 1
 	}
 
+	ft.packet_num = ft.info.SplitNum * ft.packet_num_per_block
+	ft.data = make([]byte, ft.config.DATA_SIZE*ft.packet_num) // ゼロパディング処理
+
+	for i := 0; i < len(ft.b)-1; i += 1 { // 送信データを代入
+		ft.data[i] = ft.b[i]
+	}
+
+	fmt.Printf("Packet NUM : %d\n", ft.packet_num)
 	fmt.Printf("Packet NUM per Block : %d\n", ft.packet_num_per_block)
 
 }
@@ -109,6 +121,7 @@ func (ft *FileTrans) CreateSockets() { // 転送に使用するソケットを�
 			if err != nil {
 				panic(err)
 			}
+			fmt.Println(port)
 			ft.sockets[port] = conn
 		}
 	}
