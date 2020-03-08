@@ -16,12 +16,13 @@ type FileTrans struct {
 	config               Config
 	info                 Info
 	b                    []byte
-	data                 []byte           // 転送ファイルを格納
-	packet_num           int              // 全パケット数
-	packet_num_per_block int              // 1ブロックのパケット数
-	payloads             map[int][]byte   // 全ペイロードを格納
-	sockets              map[int]net.Conn // Port番号に対応したソケット
-	IP                   string
+	data                 []byte                 // 転送ファイルを格納
+	packet_num           int                    // 全パケット数
+	packet_num_per_block int                    // 1ブロックのパケット数
+	payloads             map[int]map[int][]byte // 全ペイロードを格納
+	//payloads [][]byte
+	sockets map[int]net.Conn // Port番号に対応したソケット
+	IP      string
 }
 
 func (ft *FileTrans) OpenYmlFile(filename string) { //YAMLファイルの読み込み
@@ -98,13 +99,16 @@ func (ft *FileTrans) ReadInfo(payload string) { // OFCからのペイロード�
 func (ft *FileTrans) CreatePayload() { // 先頭4バイトに独自ヘッダを付与
 
 	var tool Tool
-	ft.payloads = map[int][]byte{} //初期化
+	ft.payloads = make(map[int]map[int][]byte)
 
 	for i := 0; i < ft.packet_num; i += 1 {
 		data := ft.data[i*ft.config.DATA_SIZE : (i+1)*ft.config.DATA_SIZE]
 		header := tool.int_to_bytes(i)
 		data = append(header, data...)
-		ft.payloads[i] = data
+		tmp := map[int][]byte{}
+		tmp[i%ft.packet_num_per_block] = data
+		ft.payloads[i/ft.packet_num_per_block] = tmp
+		//ft.payloads = append(ft.payloads, data)
 		//fmt.Println(header)
 	}
 }
@@ -128,8 +132,9 @@ func (ft *FileTrans) CreateSockets() { // 転送に使用するソケットを�
 
 }
 
-func (ft *FileTrans) SendPacket(port int, pos int) {
-	fmt.Fprintf(ft.sockets[port], string(ft.payloads[pos]))
+func (ft *FileTrans) SendPacket(port int, block int, pos int) {
+	fmt.Fprintf(ft.sockets[port], string(ft.payloads[block][pos]))
+	//fmt.Fprintf(ft.sockets[port], string(ft.payloads[pos]))
 }
 
 func (ft *FileTrans) Packet_num_per_block() int {
