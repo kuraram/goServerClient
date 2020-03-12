@@ -21,8 +21,10 @@ type FileTrans struct {
 	packet_num_per_block int                    // 1ブロックのパケット数
 	payloads             map[int]map[int][]byte // 全ペイロードを格納
 	//payloads [][]byte
-	sockets map[int]net.Conn // Port番号に対応したソケット
-	IP      string
+	sockets   map[int]net.Conn // Port番号に対応したソケット
+	IP        string
+	comp_chan chan int // 全ブロックを取得するかの管理
+	data_chan chan int // 1パケット毎の管理
 }
 
 func (ft *FileTrans) OpenYmlFile(filename string) { //YAMLファイルの読み込み
@@ -96,20 +98,31 @@ func (ft *FileTrans) ReadInfo(payload string) { // OFCからのペイロード�
 
 }
 
+func (ft *FileTrans) SetChan() {
+	ft.comp_chan = make(chan int, ft.packet_num)
+	ft.data_chan = make(chan int, ft.packet_num)
+}
+
 func (ft *FileTrans) CreatePayload() { // 先頭4バイトに独自ヘッダを付与
 
 	var tool Tool
 	ft.payloads = make(map[int]map[int][]byte)
 
+	tmp := map[int][]byte{}
 	for i := 0; i < ft.packet_num; i += 1 {
 		data := ft.data[i*ft.config.DATA_SIZE : (i+1)*ft.config.DATA_SIZE]
 		header := tool.int_to_bytes(i)
 		data = append(header, data...)
-		tmp := map[int][]byte{}
 		tmp[i%ft.packet_num_per_block] = data
-		ft.payloads[i/ft.packet_num_per_block] = tmp
+
+		if (i+1)%ft.packet_num_per_block == 0 {
+			ft.payloads[i/ft.packet_num_per_block] = tmp
+			tmp = map[int][]byte{}
+		}
+
+		//fmt.Println(i/ft.packet_num_per_block, i%ft.packet_num_per_block)
 		//ft.payloads = append(ft.payloads, data)
-		//fmt.Println(header)
+		//fmt.Println(ft.payloads[i/ft.packet_num_per_block][i%ft.packet_num_per_block][:ft.config.CUSTOM_HEAD_SIZE])
 	}
 }
 
@@ -133,8 +146,36 @@ func (ft *FileTrans) CreateSockets() { // 転送に使用するソケットを�
 }
 
 func (ft *FileTrans) SendPacket(port int, block int, pos int) {
+	//fmt.Println(port, block, pos)
+	//var tool Tool
+	//data := ft.payloads[block][pos]
+	//fmt.Println(data)
+	//fmt.Println(data[:ft.config.CUSTOM_HEAD_SIZE])
+	//fmt.Println(ft.payloads[block])
+	i := block*ft.packet_num_per_block + pos
+	ft.data_chan <- i
+	//data := ft.data[i*ft.config.DATA_SIZE : (i+1)*ft.config.DATA_SIZE]
+	//header := tool.int_to_bytes(i)
+	//data = append(header, data...)
+	//go fmt.Fprintf(ft.sockets[port], string(data))
+	//fmt.Printf("\n%d", i)
 	fmt.Fprintf(ft.sockets[port], string(ft.payloads[block][pos]))
-	//fmt.Fprintf(ft.sockets[port], string(ft.payloads[pos]))
+	ft.comp_chan <- i
+	<-ft.data_chan
+}
+
+func (ft *FileTrans) CloseSockets() { // ソケットを閉じる
+
+	ports := ft.GetKeysPortNUM()
+
+	for _, port := range ports {
+		ft.sockets[port].Close()
+	}
+
+}
+
+func (ft *FileTrans) Packet_num() int {
+	return ft.packet_num
 }
 
 func (ft *FileTrans) Packet_num_per_block() int {
@@ -147,4 +188,18 @@ func (ft *FileTrans) Phase_num() int {
 
 func (ft *FileTrans) Blocks() [][]int {
 	return ft.info.Blocks
+}
+
+func (ft *FileTrans) GetKeysPortNUM() []int { // Socketと結び付けられたポート番号を取得
+	keys := make([]int, len(ft.sockets))
+	i := 0
+	for k := range ft.sockets {
+		keys[i] = k
+		i++
+	}
+	return keys
+}
+
+func (ft *FileTrans) Comp() chan int {
+	return ft.comp_chan
 }
